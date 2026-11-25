@@ -1,0 +1,18 @@
+{
+  "records": 35000,
+  "source_rows_with_plot": 92374,
+  "year_range": "1930–2024",
+  "with_directors": 34699,
+  "with_awards": 4372,
+  "with_imdb": 34997,
+  "raw_json_mb": 42.07,
+  "packed_gzip_mb": 16.12,
+  "source": "NiklasAbraham/MoviePlotEmbeddingsDataset; upstream sources listed in SOURCES.md",
+  "license": "CC BY-NC 4.0",
+  "rating_scale": "TMDb vote_average, 0–10",
+  "generated_from": "movie_dataset_source.csv",
+  "domestic_records": 965,
+  "with_title_zh": 998,
+  "with_plot_zh": 220,
+  "zh_enrichment_source": "Wikidata API (CC0) & Chinese Wikipedia API zh-cn (CC BY-SA 4.0)"
+}
