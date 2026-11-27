@@ -14,6 +14,7 @@
   let lastTotal = 0;
   const shortlist = new Map();
   const posterCache = new Map();
+  const seenMovieIds = new Set();
 
   // Chinese localization dictionaries for Genres, Countries, Directors, and Iconic Titles
   const EN_TO_ZH_COUNTRY = {
@@ -376,6 +377,13 @@
 
     info.append(trow, sub, dir);
 
+    if (movie.similarity_reason) {
+      const simB = document.createElement('div');
+      simB.className = 'sim-badge';
+      simB.textContent = `🔗 相似依据：${movie.similarity_reason}`;
+      info.append(simB);
+    }
+
     if (movie.awards) {
       const aw = document.createElement('div');
       aw.className = 'award-pill';
@@ -437,7 +445,16 @@
       syncSaveText();
       updateShortlistCount();
     };
-    actions.append(btnDetail, btnSave);
+    const btnSimilar = document.createElement('button');
+    btnSimilar.type = 'button';
+    btnSimilar.className = 'btn btn-sm';
+    btnSimilar.style.borderColor = 'var(--line-strong)';
+    btnSimilar.style.color = 'var(--gold)';
+    btnSimilar.textContent = '＋ 类似';
+    btnSimilar.title = '推荐 3 部风格/题材/导演相似的影片';
+    btnSimilar.onclick = () => requestSimilar(movie);
+
+    actions.append(btnDetail, btnSimilar, btnSave);
 
     if (movie.zh_url) {
       const a = document.createElement('a');
@@ -687,9 +704,42 @@
       case 'security_refusal': return ['🛡️ 安全护栏已拦截', 'route-security'];
       case 'no_evidence': return ['📭 无匹配证据 · 拒绝编造', 'route-empty'];
       case 'context_compare': return ['🔄 多轮上下文横向对比', 'route-cloud'];
+      case 'self_intro': return ['👋 自我介绍', 'route-clarify'];
+      case 'meta_qa': return ['ℹ️ 系统与片库说明', 'route-clarify'];
+      case 'off_topic': return ['🧭 领域边界引导', 'route-empty'];
       case 'context_detail': return ['📄 多轮上下文影片详档', 'route-cloud'];
+      case 'similar': return ['✨ 同风格智能推荐', 'route-cloud'];
       case 'reset': return ['🧹 会话记忆已重置', 'route-empty'];
-      default: return ['📚 本地 BM25 已验证片库模式', 'route-local'];
+      default: return ['📚 本地核心精选模式', 'route-local'];
+    }
+  }
+
+  async function requestSimilar(movie) {
+    if (!movie || !movie.id) return;
+    appendUserBubble(`＋ 推荐与《${displayTitle(movie)}》类似的电影`);
+    $('sendBtn').disabled = true;
+    try {
+      const excl = [...seenMovieIds];
+      let data;
+      if (useServerApi) {
+        const resp = await fetch('/api/similar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ movie_id: movie.id, exclude_ids: excl, limit: 3 })
+        });
+        data = await resp.json();
+      } else {
+        data = browserEngine.findSimilar(movie.id, excl, 3);
+      }
+      appendBotMessage(data);
+    } catch (err) {
+      appendBotMessage({
+        route: 'error',
+        reply: `相似影片推荐异常：${err.message || '请稍后再试'}`,
+        items: []
+      });
+    } finally {
+      $('sendBtn').disabled = false;
     }
   }
 
@@ -741,11 +791,60 @@
       b.append(ul);
     }
 
-    // Movie poster cards
+    // Movie poster cards + clean '+' expansion card
     if (data.items && data.items.length) {
       const grid = document.createElement('div');
       grid.className = 'movie-grid';
-      data.items.forEach(m => grid.append(createMovieCard(m)));
+      data.items.forEach(m => {
+        seenMovieIds.add(m.id);
+        grid.append(createMovieCard(m));
+      });
+
+      // Add tactile '+' expansion card for similar movies & on-demand more results
+      if (data.route === 'rag_local' || data.route === 'rag_cloud' || data.route === 'degraded_local' || data.route === 'similar') {
+        const seedMovie = data.items[0];
+        const plusCard = document.createElement('div');
+        plusCard.className = 'plus-card';
+
+        const circle = document.createElement('button');
+        circle.type = 'button';
+        circle.className = 'plus-circle';
+        circle.textContent = '+';
+        circle.title = '推荐更多类似电影';
+        circle.onclick = () => requestSimilar(seedMovie);
+
+        const title = document.createElement('div');
+        title.className = 'plus-card-title';
+        title.textContent = '探索更多类似电影';
+
+        const sub = document.createElement('div');
+        sub.className = 'plus-card-sub';
+        sub.textContent = `点击「＋」基于《${seedMovie.title_zh || seedMovie.title}》的导演、题材与剧情推荐 3 部同风格佳作`;
+
+        const btns = document.createElement('div');
+        btns.className = 'plus-card-btns';
+
+        const simBtn = document.createElement('button');
+        simBtn.type = 'button';
+        simBtn.className = 'btn btn-sm btn-gold';
+        simBtn.textContent = '＋ 推荐类似';
+        simBtn.onclick = () => requestSimilar(seedMovie);
+        btns.append(simBtn);
+
+        if (data.has_more && data.route !== 'similar') {
+          const moreBtn = document.createElement('button');
+          moreBtn.type = 'button';
+          moreBtn.className = 'btn btn-sm';
+          const rem = Math.max(0, (data.total || 0) - (data.next_offset || data.items.length));
+          moreBtn.textContent = `展开更多（余 ${rem.toLocaleString()} 部）`;
+          moreBtn.onclick = () => sendMessage(lastQuery, { offset: data.next_offset || (lastOffset + data.items.length), silentUser: true });
+          btns.append(moreBtn);
+        }
+
+        plusCard.append(circle, title, sub, btns);
+        grid.append(plusCard);
+      }
+
       b.append(grid);
     }
 
@@ -790,14 +889,6 @@
         btn.onclick = () => sendMessage(s);
         chips.append(btn);
       });
-      if (data.total > lastOffset + data.items.length) {
-        const nextBtn = document.createElement('button');
-        nextBtn.type = 'button';
-        nextBtn.className = 'chip-btn';
-        nextBtn.textContent = `加载下一页（剩余 ${(data.total - lastOffset - data.items.length).toLocaleString()} 部） →`;
-        nextBtn.onclick = () => sendMessage(lastQuery, { offset: lastOffset + 8, silentUser: true });
-        chips.append(nextBtn);
-      }
     }
 
     if (chips.childElementCount) b.append(chips);
@@ -827,6 +918,174 @@
     $('messages').scrollTop = $('messages').scrollHeight;
   }
 
+  async function sendMessageStream(q, uiFilters) {
+    const resp = await fetch('/api/chat_stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: q,
+        session_id: SESSION_ID,
+        filters: uiFilters,
+        offset: 0
+      })
+    });
+    if (!resp.ok || !resp.body) throw new Error('流式连接失败');
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let liveWrap = null, liveBody = null, liveBadge = null, liveLat = null, liveTrace = null;
+    let accText = '';
+
+    function ensureLiveBubble(cardsData) {
+      if (liveWrap) return;
+      if (cardsData.slots !== undefined) updateSlotPills(cardsData.slots);
+      lastTotal = cardsData.total || 0;
+      const wrap = document.createElement('div');
+      wrap.className = 'msg msg-bot';
+      const b = document.createElement('div');
+      b.className = 'bubble';
+
+      const meta = document.createElement('div');
+      meta.className = 'msg-meta';
+      const badge = document.createElement('span');
+      badge.className = 'route-badge route-cloud';
+      badge.textContent = '✨ 云端闭卷 RAG · 实时生成中…';
+      const lat = document.createElement('span');
+      lat.className = 'latency-tag';
+      lat.textContent = `片库检索 ${cardsData.latency_ms ?? 0} ms`;
+      meta.append(badge, lat);
+      b.append(meta);
+
+      const bodyDiv = document.createElement('div');
+      bodyDiv.className = 'reply-body';
+      bodyDiv.style.whiteSpace = 'pre-wrap';
+      bodyDiv.textContent = '正在结合下方已验证片库证据流式生成推荐…';
+      b.append(bodyDiv);
+
+      // Render movie cards IMMEDIATELY (0.03s!) while LLM text streams above!
+      if (cardsData.items && cardsData.items.length) {
+        const grid = document.createElement('div');
+        grid.className = 'movie-grid';
+        cardsData.items.forEach(m => {
+          seenMovieIds.add(m.id);
+          grid.append(createMovieCard(m));
+        });
+        const seedMovie = cardsData.items[0];
+        const plusCard = document.createElement('div');
+        plusCard.className = 'plus-card';
+        const circle = document.createElement('button');
+        circle.type = 'button'; circle.className = 'plus-circle'; circle.textContent = '+';
+        circle.onclick = () => requestSimilar(seedMovie);
+        const title = document.createElement('div');
+        title.className = 'plus-card-title'; title.textContent = '探索更多类似电影';
+        const sub = document.createElement('div');
+        sub.className = 'plus-card-sub';
+        sub.textContent = `点击「＋」基于《${seedMovie.title_zh || seedMovie.title}》推荐 3 部同风格佳作`;
+        const btns = document.createElement('div');
+        btns.className = 'plus-card-btns';
+        const simBtn = document.createElement('button');
+        simBtn.type = 'button'; simBtn.className = 'btn btn-sm btn-gold'; simBtn.textContent = '＋ 推荐类似';
+        simBtn.onclick = () => requestSimilar(seedMovie);
+        btns.append(simBtn);
+        if (cardsData.has_more) {
+          const moreBtn = document.createElement('button');
+          moreBtn.type = 'button'; moreBtn.className = 'btn btn-sm';
+          const rem = Math.max(0, (cardsData.total || 0) - (cardsData.next_offset || cardsData.items.length));
+          moreBtn.textContent = `展开更多（余 ${rem.toLocaleString()} 部）`;
+          moreBtn.onclick = () => sendMessage(lastQuery, { offset: cardsData.next_offset || cardsData.items.length, silentUser: true });
+          btns.append(moreBtn);
+        }
+        plusCard.append(circle, title, sub, btns);
+        grid.append(plusCard);
+        b.append(grid);
+      }
+
+      const traceSlot = document.createElement('div');
+      b.append(traceSlot);
+
+      wrap.append(b);
+      $('messages').append(wrap);
+      $('messages').scrollTop = $('messages').scrollHeight;
+      liveWrap = wrap; liveBody = bodyDiv; liveBadge = badge; liveLat = lat; liveTrace = traceSlot;
+    }
+
+    function renderTraceInto(container, trace, hitId) {
+      if (!trace || !trace.length) return;
+      const det = document.createElement('details');
+      det.className = 'trace-details';
+      const sum = document.createElement('summary');
+      sum.textContent = `🔎 查看架构决策路由追踪（${trace.length} 步 · 首位命中 ID: ${hitId || '无'}）`;
+      const steps = document.createElement('div');
+      steps.className = 'trace-steps';
+      trace.forEach((t, idx) => {
+        const item = document.createElement('div');
+        item.className = 'trace-step';
+        const st = document.createElement('strong');
+        st.textContent = `${idx + 1}. ${t.step}`;
+        item.append(st, document.createTextNode(`：${t.detail}`));
+        steps.append(item);
+      });
+      det.append(sum, steps);
+      container.replaceChildren(det);
+    }
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+      for (const block of parts) {
+        let evName = 'message', dataStr = '';
+        for (const line of block.split('\n')) {
+          if (line.startsWith('event:')) evName = line.slice(6).trim();
+          else if (line.startsWith('data:')) dataStr += line.slice(5).trim();
+        }
+        if (!dataStr) continue;
+        const payload = JSON.parse(dataStr);
+        if (evName === 'cards') {
+          ensureLiveBubble(payload);
+        } else if (evName === 'delta') {
+          accText += payload.text || '';
+          if (liveBody) {
+            liveBody.textContent = accText + ' ▌';
+            $('messages').scrollTop = $('messages').scrollHeight;
+          }
+        } else if (evName === 'done') {
+          if (!liveWrap) {
+            if (payload.slots !== undefined) updateSlotPills(payload.slots);
+            lastTotal = payload.total || 0;
+            appendBotMessage(payload);
+          } else {
+            const [bt, bc] = routeMeta(payload.route);
+            liveBadge.className = `route-badge ${bc}`;
+            liveBadge.textContent = bt;
+            liveLat.textContent = `${payload.latency_ms} ms`;
+            const mdDom = renderSafeMarkdown(payload.reply || accText);
+            liveBody.replaceWith(mdDom);
+            liveBody = mdDom;
+            renderTraceInto(liveTrace, payload.trace, payload.hit_id);
+            $('messages').scrollTop = $('messages').scrollHeight;
+          }
+        } else if (evName === 'degraded') {
+          if (!liveWrap) {
+            appendBotMessage(payload);
+          } else {
+            const [bt, bc] = routeMeta('degraded_local');
+            liveBadge.className = `route-badge ${bc}`;
+            liveBadge.textContent = bt;
+            liveLat.textContent = `${payload.latency_ms} ms`;
+            const mdDom = renderSafeMarkdown(payload.reply);
+            liveBody.replaceWith(mdDom);
+            liveBody = mdDom;
+            renderTraceInto(liveTrace, payload.trace, payload.hit_id);
+          }
+        }
+      }
+    }
+  }
+
   async function sendMessage(queryText, opts = {}) {
     const q = (queryText || '').trim();
     if (!q) return;
@@ -840,8 +1099,24 @@
 
     const uiFilters = opts.forceFilters !== undefined ? opts.forceFilters : getUiFilters();
     const useCloudToggle = $('cloudToggle') && $('cloudToggle').checked && cloudConfigured;
+    const fastGuardToggle = $('fastGuardToggle') && $('fastGuardToggle').checked;
 
     $('sendBtn').disabled = true;
+    // Unified cohesive generation with live elapsed timer
+    let loadingBubble = null;
+    let loadingTimer = null;
+    if (useServerApi && useCloudToggle && !opts.simulateFailure && lastOffset === 0) {
+      const tStart = performance.now();
+      loadingBubble = document.createElement('div');
+      loadingBubble.className = 'msg msg-bot';
+      loadingBubble.innerHTML = '<div class="bubble"><div class="msg-meta"><span class="route-badge route-cloud">✨ 正在检索 92,374 部片库并生成闭卷推荐…</span><span class="latency-tag" id="liveWaitTimer">0.0 s</span></div><div class="reply-body" style="color:var(--muted);">片单与专业分析将同步呈现，请稍候…</div></div>';
+      $('messages').append(loadingBubble);
+      $('messages').scrollTop = $('messages').scrollHeight;
+      loadingTimer = setInterval(() => {
+        const el = loadingBubble && loadingBubble.querySelector('#liveWaitTimer');
+        if (el) el.textContent = `${((performance.now() - tStart) / 1000).toFixed(1)} s`;
+      }, 100);
+    }
     try {
       let data;
       if (useServerApi) {
@@ -854,6 +1129,7 @@
             filters: uiFilters,
             offset: lastOffset,
             use_cloud: !!useCloudToggle,
+            fast_guard: !!fastGuardToggle,
             simulate_cloud_failure: !!opts.simulateFailure
           })
         });
@@ -865,17 +1141,21 @@
         if (opts.simulateFailure) {
           const local = browserEngine.chat(q, uiFilters, lastOffset);
           local.route = 'degraded_local';
-          local.reply = '【已优雅降级至本地片库模式】静态演示模式模拟云端 API 超时（504），系统自动回退至浏览器本地 35,000 部已验证片库继续服务。\n\n' + local.reply;
+          local.reply = '【已优雅降级至本地片库模式】静态演示模式模拟云端 API 超时（504），系统自动回退至浏览器本地 92,374 部全量片库继续服务。\n\n' + local.reply;
           local.trace = [...(local.trace || []), { step: '优雅降级', status: 'degraded', detail: '模拟云端故障，自动降级为浏览器本地检索' }];
           data = local;
         } else {
           data = browserEngine.chat(q, uiFilters, lastOffset);
         }
       }
+      if (loadingTimer) clearInterval(loadingTimer);
+      if (loadingBubble) loadingBubble.remove();
       lastTotal = data.total || 0;
       if (data.slots !== undefined) updateSlotPills(data.slots);
       appendBotMessage(data);
     } catch (err) {
+      if (loadingTimer) clearInterval(loadingTimer);
+      if (loadingBubble) loadingBubble.remove();
       appendBotMessage({
         route: 'error',
         reply: `请求处理异常：${err.message || '请检查本地服务或网络连接。'}`,
@@ -936,6 +1216,7 @@
 
     // Reset session
     $('resetBtn').onclick = async () => {
+      seenMovieIds.clear();
       clearUiFilters();
       if (useServerApi) {
         await fetch('/api/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: SESSION_ID }) }).catch(() => {});
@@ -1019,6 +1300,23 @@
           $('configStatus').textContent = err.message;
         }
       };
+      if ($('pingModelBtn')) {
+        $('pingModelBtn').onclick = async () => {
+          $('configStatus').textContent = '⚡ 正在实测模型端到端延迟与思考开关…';
+          try {
+            const r = await fetch('/api/ping_model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.reply || '测速失败');
+            const sec = (d.latency_ms / 1000).toFixed(2);
+            const warn = d.reasoning_tokens > 0
+              ? ` ⚠️ 代理仍产生了 ${d.reasoning_tokens} 个隐藏思考 Token`
+              : (d.latency_ms > 4500 ? ' ⚠️ 上游节点较慢，可勾选底部「⚡ 4秒极速保底」' : ' ✅ 极速畅通！');
+            $('configStatus').textContent = `实测 ${d.model}：${sec} 秒（${d.mode_label}）${warn}`;
+          } catch (err) {
+            $('configStatus').textContent = '测速失败：' + err.message;
+          }
+        };
+      }
       $('clearKeyBtn').onclick = async () => {
         await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clear: true }) });
         cloudConfigured = false;
@@ -1049,10 +1347,10 @@
       }
     }
 
-    $('statusText').textContent = '正在加载 35,000 部电影索引…';
+    $('statusText').textContent = '正在并行加载 92,374 部全量影库…';
     try {
-      const meta = await browserEngine.load('catalog.pack');
-      populateMeta(meta, '浏览器本地索引');
+      const meta = await browserEngine.load(['catalog_1.pack', 'catalog_2.pack']);
+      populateMeta(meta, '浏览器全量索引');
     } catch (err) {
       $('statusText').textContent = '索引加载失败';
       appendBotMessage({

@@ -44,10 +44,11 @@
           <button type="button" class="btn btn-sm" id="clearFilterBtn">清空</button>
         </div>
         <div class="field">
-          <label for="fRegion">电影国别（国产 / 国外）</label>
+          <label for="fRegion">电影国别（国产 / 合拍 / 国外）</label>
           <select id="fRegion">
             <option value="">不限国别</option>
-            <option value="国产">国产 / 华语（大陆·香港·台湾）</option>
+            <option value="国产">国产 / 华语（主出品：大陆·香港·台湾）</option>
+            <option value="中外合拍">中外合拍（含华语联合出品）</option>
             <option value="国外">国外影片</option>
           </select>
         </div>
@@ -93,7 +94,7 @@
           </button>
           <button type="button" class="demo-btn" data-demo="国产高分科幻或剧情电影">
             🇨🇳 国别精筛：国产高分科幻或剧情电影
-            <small>国产/华语 965 部专属片库检索</small>
+            <small>国产/华语 2,388 部专属片库检索</small>
           </button>
           <button type="button" class="demo-btn" data-demo="1990年代评分7.5分以上的美国悬疑电影">
             🎬 多条件抽取：90年代高分美国悬疑片
@@ -118,22 +119,22 @@
     <main class="chat-stage">
       <div class="messages" id="messages">
         <section class="welcome-hero">
-          <div class="welcome-eyebrow">INT6137 · DEVELOPING A CHATBOT FOR PROFESSIONALS · V2 EDITION</div>
-          <h2>面向影视策展、编剧与影评研究的专业片单调研助手</h2>
+          <div class="welcome-eyebrow">INT6137 · DEVELOPING A CHATBOT FOR PROFESSIONALS</div>
+          <h2>片刻 CineCurator — 92,374 部全量影库专业推荐助手</h2>
           <p>
-            内置 <strong>35,000</strong> 部横跨 1930–2024 年的公开电影档案，采用 <strong>安全护栏 → 意图路由 → 中英结构化抽取 → 倒排 BM25 精准检索 → 真实证据 RAG 生成 / 优雅降级</strong> 架构。支持多轮追问对比、实景电影海报加载、Wikidata/Wikipedia/IMDb 溯源与专业策展片单一键导出。
+            完整收录 <strong>92,374</strong> 部横跨 1930–2024 年的公开电影档案（零删减），采用 <strong>安全护栏 → 八类意图精准路由 → 双语/LLM 语义理解 → 倒排 BM25 核心精选 → 严格闭卷 RAG + 引用核验 → 「＋」相似电影引擎</strong> 架构。支持自我介绍/元问答/越界防护、常见生活场景与情绪推荐、每次只推最核心 1–3 部并可按需点「＋」拓展。
           </p>
           <div class="stat-grid">
-            <div class="stat-box"><div class="stat-val" id="statRecords">35,000</div><div class="stat-lbl">已验证电影档案</div></div>
-            <div class="stat-box"><div class="stat-val" id="statDirectors">34,699</div><div class="stat-lbl">含导演归属记录</div></div>
-            <div class="stat-box"><div class="stat-val" id="statAwards">4,372</div><div class="stat-lbl">含获奖记录影片</div></div>
-            <div class="stat-box"><div class="stat-val" id="statYears">1930–2024</div><div class="stat-lbl">电影史时间跨度</div></div>
+            <div class="stat-box"><div class="stat-val" id="statRecords">92,374</div><div class="stat-lbl">全量电影档案</div></div>
+            <div class="stat-box"><div class="stat-val" id="statDirectors">86,598</div><div class="stat-lbl">含导演归属记录</div></div>
+            <div class="stat-box"><div class="stat-val" id="statAwards">5,058</div><div class="stat-lbl">含获奖记录影片</div></div>
+            <div class="stat-box"><div class="stat-val" id="statYears">1930–2024</div><div class="stat-lbl">近百年影史跨度</div></div>
           </div>
           <div class="chip-bar">
+            <button type="button" class="chip-btn" data-demo="自我介绍">先打个招呼：自我介绍</button>
             <button type="button" class="chip-btn" data-demo="刘德华有哪些高评分的电影推荐？">刘德华有哪些高评分的电影推荐？</button>
-            <button type="button" class="chip-btn" data-demo="梁朝伟的高分电影">梁朝伟的高分电影</button>
-            <button type="button" class="chip-btn" data-demo="国产高分科幻或剧情电影">国产高分科幻/剧情片</button>
-            <button type="button" class="chip-btn" data-demo="诺兰导演的高分科幻电影">诺兰导演的高分科幻片</button>
+            <button type="button" class="chip-btn" data-demo="适合和女朋友周末看的浪漫高分电影">适合和女朋友周末看的浪漫高分电影</button>
+            <button type="button" class="chip-btn" data-demo="类似盗梦空间的烧脑电影">类似《盗梦空间》的烧脑电影</button>
           </div>
         </section>
       </div>
@@ -160,23 +161,25 @@
   <p class="modal-sub">诚实区分「已实现」「部分实现」与「未实现」，所有组件职责可逐轮在回复底部「架构路由追踪」中验证。</p>
   <div class="arch-flow">
     <span class="arch-node">1. 安全护栏（防注入）</span> →
-    <span class="arch-node">2. 意图路由（澄清/对比/重置）</span> →
-    <span class="arch-node">3. 中英结构化抽取</span> →
+    <span class="arch-node">2. 八维意图路由（自介/元问答/越界/换一批/相似/对比/澄清/重置）</span> →
+    <span class="arch-node">3. 中英结构化与场景抽取</span> →
     <span class="arch-node">4. 多轮记忆槽位合并</span> →
-    <span class="arch-node">5. 倒排 BM25 检索 (35,000部)</span> →
-    <span class="arch-node">6. 本地综合 / 云端真 RAG + 优雅降级</span>
+    <span class="arch-node">5. 双分片全量 BM25 检索 (92,374部)</span> →
+    <span class="arch-node">6. 本地核心精选 / 统一闭卷云端 RAG + 优雅降级</span>
   </div>
   <table class="arch-table">
     <thead><tr><th>核心功能模块</th><th>状态</th><th>实作说明与边界</th></tr></thead>
     <tbody>
-      <tr><td>35,000 部电影倒排 BM25 + 精确片名检索</td><td class="status-done">已实现</td><td>停用词过滤、IDF 加权、精确片名优先、导演/演员/获奖/年份/评分全维度过滤</td></tr>
-      <tr><td>多轮对话记忆槽位、追问修正与横向对比</td><td class="status-done">已实现</td><td>支持连续收窄条件、对比前 2–3 部、展开单部详档及一键重置会话</td></tr>
+      <tr><td>92,374 部全量电影倒排 BM25 + 国产/合拍/国外精筛</td><td class="status-done">已实现</td><td>100% 收录 1930–2024 全量片库（双 Gzip 分片 27.3 MB），含 2,388 部纯国产片、86,598 条导演、5,058 条获奖记录与 1,314 条中文片名</td></tr>
+      <tr><td>八维意图路由器与领域边界护栏</td><td class="status-done">已实现</td><td>精准拦截自我介绍、问候、系统元问答、感谢及非电影话题（天气/写代码等），绝不乱推电影卡片；支持「换一批」「类似《某片》」等自然口语</td></tr>
+      <tr><td>核心聚焦展示 +「＋」内容相似度扩展引擎</td><td class="status-done">已实现</td><td>默认仅展示最核心 1–3 部避免刷屏；点击「＋ 类似」按导演/题材/年代/BM25 实时推荐同风格影片</td></tr>
+      <tr><td>严格闭卷统一 RAG + 单次极速调用 + 引用核验</td><td class="status-done">已实现（本机版）</td><td>本地命中后仅发 1 次云端请求（缓存 Endpoint DNS），图文与卡片统一对齐渲染；严格闭卷零编造并自动审计 `[QID]` 引用零越界</td></tr>
+      <tr><td>多轮对话记忆槽位、横向对比与详档</td><td class="status-done">已实现</td><td>支持连续收窄条件、换一批、对比前 2–3 部、展开单部详档及一键重置会话</td></tr>
       <tr><td>韧性四件套（澄清 / 异常 / 备援 / 优雅降级）</td><td class="status-done">已实现</td><td>模糊提问主动追问；0 命中智能分析放宽建议；云端超时/报错自动降级至本地片库</td></tr>
       <tr><td>安全护栏（Prompt Injection & SSRF 防护）</td><td class="status-done">已实现</td><td>规则拦截常见注入与密钥探测；严禁内网/非 HTTPS API 地址；密钥仅内存暂存</td></tr>
-      <tr><td>真 RAG 闭环（可选云端 Gemini / OpenAI）</td><td class="status-done">已实现（本机版）</td><td>将 Top-6 本地证据与历史上下文注入 Prompt 生成带 [QID] 引用回答；静态托管版不含 Key 表单</td></tr>
-      <tr><td>实景海报展示与策展片单导出</td><td class="status-done">已实现</td><td>Wikipedia REST API 按需懒加载电影海报 + 艺术封面兜底；支持导出 Markdown/JSON 调研简报</td></tr>
-      <tr><td>跨语言中文自由描述理解</td><td class="status-part">部分实现</td><td>已内置 100+ 经典中文片名、45+ 导演及 60+ 题材/剧情词映射；长尾中文剧情需配合英文词或云端 RAG</td></tr>
-      <tr><td>稠密向量数据库（Dense Embedding Vector DB）</td><td class="status-todo">未实现</td><td>出于零依赖、可审计与低延迟取舍，采用确定性倒排 BM25，不宣称使用向量语义库</td></tr>
+      <tr><td>实景海报零 Token 渲染与策展片单导出</td><td class="status-done">已实现</td><td>Wikipedia REST API 前端按需懒加载海报（0 LLM Token 消耗）+ 艺术封面兜底；支持导出 Markdown/JSON</td></tr>
+      <tr><td>离线版长尾跨语言自由聊天</td><td class="status-part">部分实现</td><td>离线静态版内置 100+ 中文片名/演员/导演及 110+ 情绪、对象与场景词映射；极冷门开放语义需开启云端 RAG</td></tr>
+      <tr><td>稠密向量数据库（Dense Embedding Vector DB）</td><td class="status-todo">未实现</td><td>出于零依赖、可审计与低延迟取舍，采用确定性倒排 BM25 + 内容相似度，不宣称使用向量语义库</td></tr>
     </tbody>
   </table>
   <div class="modal-actions">

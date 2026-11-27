@@ -1,18 +1,28 @@
 {
-  "records": 35000,
+  "version": "V4 Pro",
+  "records": 92374,
   "source_rows_with_plot": 92374,
+  "shards": [
+    "catalog_1.pack",
+    "catalog_2.pack"
+  ],
+  "shard_gzip_mb": {
+    "catalog_1.pack": 14.97,
+    "catalog_2.pack": 12.36
+  },
+  "packed_gzip_mb": 27.33,
+  "raw_json_mb": 75.88,
   "year_range": "1930–2024",
-  "with_directors": 34699,
-  "with_awards": 4372,
-  "with_imdb": 34997,
-  "raw_json_mb": 42.07,
-  "packed_gzip_mb": 16.12,
-  "source": "NiklasAbraham/MoviePlotEmbeddingsDataset; upstream sources listed in SOURCES.md",
+  "domestic_records": 2388,
+  "coprod_records": 207,
+  "foreign_records": 89779,
+  "with_directors": 86598,
+  "with_awards": 5058,
+  "with_imdb": 91006,
+  "with_title_zh": 1314,
+  "with_plot_zh": 420,
+  "source": "NiklasAbraham/MoviePlotEmbeddingsDataset (100% full catalog); Wikidata (CC0) & zh.wikipedia (CC BY-SA 4.0)",
   "license": "CC BY-NC 4.0",
   "rating_scale": "TMDb vote_average, 0–10",
-  "generated_from": "movie_dataset_source.csv",
-  "domestic_records": 965,
-  "with_title_zh": 998,
-  "with_plot_zh": 220,
-  "zh_enrichment_source": "Wikidata API (CC0) & Chinese Wikipedia API zh-cn (CC BY-SA 4.0)"
+  "generated_from": "movie_dataset_source.csv"
 }

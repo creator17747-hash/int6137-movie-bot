@@ -21,7 +21,20 @@
     /(越狱|进入开发者模式|解除安全限制)/
   ];
 
-  const GREETING_RE = /^(你好|您好|hi|hello|hey|哈喽|嗨|在吗|你是谁|介绍一下你自己|你能做什么|help|帮助)[!！?？。.\s]*$/i;
+  const SELF_INTRO_PATTERNS = [
+    /^(你好|您好|hi|hello|hey|哈喽|嗨|在吗|早上好|晚上好|help|帮助)[!！?？。.\s]*$/i,
+    /(自我介绍|介绍.{0,4}自己|你是谁|你叫什么|你是什么(机器人|模型|助手|AI)|你能做什么|你会做什么|你会干嘛|你有哪些功能|怎么用|使用指南|who\s+are\s+you|introduce\s+yourself|what\s+can\s+you\s+do)/i
+  ];
+  const META_QA_PATTERNS = [
+    /(多少部电影|片库有?多大|片库规模|数据(是)?哪(里|儿)?来|数据来源|评分(是)?怎么来|怎么工作的|原理是什么|用了什么技术|架构是什么)/i,
+    /^((谢谢|感谢|多谢)(你|您|啦|了|啊|呀)*|再见|拜拜|辛苦了?|不错|厉害|牛逼|好强|真棒|666|哈哈+|好的|收到|明白|ok|thanks|thank\s+you|bye)[!！?？。.\s~～]*$/i
+  ];
+  const OFF_TOPIC_RE = /(天气|气温|下雨|写(一段|个|份)?代码|python代码|写一?首诗|写作文|数学题|1\s*\+\s*1|股票|基金|比特币|推荐一家?(餐厅|饭店|奶茶|酒店)|帮我写作业|翻译成英文)/i;
+  const NEXT_BATCH_RE = /^(换一批|换几部|再来几部|下一批|还有吗|还有别的吗|再推荐几部|more|next\s+batch)[!！?？。.\s]*$/i;
+  const SIMILAR_QUERY_PATTERNS = [
+    /(类似|像|和).{1,30}(一样|差不多|相似|风格|类型|的电影|的片)/i,
+    /^(还有类似的吗|推荐类似的|类似的电影|来几部类似的|similar\s+movies?)[!！?？。.\s]*$/i
+  ];
   const RESET_RE = /^(重置|清空|清除记忆|重新开始|新对话|reset|clear|start\s+over|new\s+chat)[!！?？。.\s]*$/i;
   const VAGUE_PATTERNS = [
     /^(推荐|找|看|来)(几部|一部|点|些)?(好看的|经典的|不错的|随便)?(电影|片子|影片)[吗呢吧啊?？。.\s]*$/,
@@ -78,6 +91,7 @@
   };
 
   const ZH_ACTOR_MAP = {
+    '李小龙':'Bruce Lee',
     '刘德华':'Andy Lau','梁朝伟':'Tony Leung','周星驰':'Stephen Chow','成龙':'Jackie Chan',
     '周润发':'Chow Yun-fat','张国荣':'Leslie Cheung','张曼玉':'Maggie Cheung','巩俐':'Gong Li',
     '李连杰':'Jet Li','甄子丹':'Donnie Yen','吴京':'Wu Jing','葛优':'Ge You','舒淇':'Shu Qi',
@@ -127,7 +141,41 @@
     '二战':['world','war','nazi','soldier'],'末日':['apocalypse','survivor','disaster'],
     '厨师':['chef','restaurant','cooking'],'梦境':['dream','subconscious','mind'],
     '记忆':['memory','amnesia','forget'],'家庭':['family','father','mother','son'],
-    '魔法':['magic','wizard','witch'],'劫案':['heist','robbery','thief']
+    '魔法':['magic','wizard','witch'],'劫案':['heist','robbery','thief'],
+    '治愈':['heartwarming','gentle','friendship','hope','kindness','life'],
+    '温暖':['warm','heartwarming','family','love','kindness'],
+    '感动':['emotional','touching','love','family','life'],
+    '烧脑':['twist','mind','mystery','puzzle','memory','psychological'],
+    '反转':['twist','secret','mystery','deception','truth'],
+    '高智商':['genius','brilliant','plan','mastermind','heist'],
+    '卧底':['undercover','police','triad','mob','infiltrate'],
+    '警匪':['police','detective','crime','gang','cop'],
+    '武侠':['martial','sword','warrior','kung','clan'],
+    '江湖':['triad','brotherhood','gangster','sword','warrior'],
+    '失恋':['breakup','heartbreak','love','relationship','romance'],
+    '孤独':['lonely','loneliness','solitude','alienation'],
+    '励志':['inspire','dream','overcome','struggle','success','hope'],
+    '逆袭':['underdog','struggle','triumph','dream','success'],
+    '公路':['road','journey','trip','travel','freedom'],
+    '黑色幽默':['satire','dark','comedy','absurd','irony'],
+    '人性':['human','moral','society','guilt','truth'],
+    '史诗':['epic','empire','war','legend','destiny'],
+    '震撼':['epic','dramatic','tragedy','legend','classic'],
+    '慢节奏':['quiet','peaceful','daily','village','season','life'],
+    '情侣':['romance','love','couple','relationship','romantic'],
+    '女朋友':['romance','love','romantic','couple','heartwarming'],
+    '约会':['romance','romantic','comedy','love'],
+    '全家':['family','children','adventure','heartwarming'],
+    '亲子':['family','children','child','parent','adventure'],
+    '周末':['comedy','adventure','fun','heartwarming'],
+    '放松':['comedy','lighthearted','warm','friendship','music'],
+    '解压':['comedy','action','fun','adventure'],
+    '下饭':['comedy','food','fun','lighthearted'],
+    '爆笑':['comedy','hilarious','funny','farce'],
+    '催泪':['emotional','tragedy','tear','family','love'],
+    '深夜':['night','midnight','lonely','quiet','jazz','noir'],
+    '爽片':['action','revenge','heist','thriller','fight'],
+    '影史':['classic','masterpiece','cinema','legend']
   };
 
   function normText(s) {
@@ -160,18 +208,19 @@
       this.session = { slots: {}, last_topic: '', last_results: [], history: [] };
     }
 
-    async load(packUrl = 'data/catalog.pack') {
-      const resp = await fetch(packUrl);
-      if (!resp.ok) throw new Error('无法下载片库文件 ' + packUrl);
-      let text;
-      if (typeof DecompressionStream !== 'undefined') {
-        const ds = new DecompressionStream('gzip');
-        const decompressed = resp.body.pipeThrough(ds);
-        text = await new Response(decompressed).text();
-      } else {
+    async load(packUrls = ['data/catalog_1.pack', 'data/catalog_2.pack']) {
+      if (typeof DecompressionStream === 'undefined') {
         throw new Error('当前浏览器不支持原生 Gzip 解压，请使用最新版 Chrome/Edge/Firefox/Safari。');
       }
-      this.movies = JSON.parse(text);
+      const urls = Array.isArray(packUrls) ? packUrls : [packUrls];
+      const parts = await Promise.all(urls.map(async u => {
+        const resp = await fetch(u);
+        if (!resp.ok) throw new Error('无法下载片库分片 ' + u);
+        const ds = new DecompressionStream('gzip');
+        const txt = await new Response(resp.body.pipeThrough(ds)).text();
+        return JSON.parse(txt);
+      }));
+      this.movies = parts.flat();
       this._buildIndex();
       this.ready = true;
       return {
@@ -253,7 +302,7 @@
       const qLow = qNorm.toLowerCase();
       const f = uiFilters || {};
       const ext = {
-        region: (f.region === '国产' || f.region === '国外') ? f.region : null,
+        region: (f.region === '国产' || f.region === '中外合拍' || f.region === '国外') ? f.region : null,
         genre: f.genre || null,
         country: f.country || null,
         director: ZH_DIRECTOR_MAP[(f.director || '').trim()] || (f.director || '').trim(),
@@ -293,7 +342,9 @@
         }
       }
       if (!ext.region) {
-        if (/国产|华语|国内电影|国产片/.test(qNorm)) {
+        if (/合拍|中外合拍/.test(qNorm)) {
+          ext.region = '中外合拍'; ext.extracted_notes.push('国别: 中外合拍');
+        } else if (/国产|华语|国内电影|国产片/.test(qNorm)) {
           ext.region = '国产'; ext.extracted_notes.push('国别: 国产/华语');
         } else if (/国外|外国|海外|外语片|欧美/.test(qNorm)) {
           ext.region = '国外'; ext.extracted_notes.push('国别: 国外');
@@ -345,7 +396,10 @@
         if (mr && parseFloat(mr[1]) > 0 && parseFloat(mr[1]) <= 11) {
           ext.min_rating = parseFloat(mr[1]);
           ext.extracted_notes.push(`最低评分 ≥ ${ext.min_rating}`);
-        } else if (/高分|高评分|高口碑|神作|佳作|top rated/i.test(qNorm)) {
+        } else if (/最高分|影史|豆瓣高分|TOP10|top 10|排名前|天花板|巅峰/i.test(qNorm)) {
+          ext.min_rating = 8.0;
+          ext.extracted_notes.push('影史高分预设 ≥ 8.0');
+        } else if (/高分|高评分|高口碑|神作|佳作|最牛|牛逼|必看|最值得看|top rated/i.test(qNorm)) {
           ext.min_rating = ext.actor ? 7.0 : 7.5;
           ext.extracted_notes.push(`高分预设 ≥ ${ext.min_rating}`);
         }
@@ -366,8 +420,8 @@
     }
 
     _passes(m, flt) {
-      if (flt.region === '国产' || flt.region === '国外') {
-        const reg = m.region || ((m._cl.includes('china') || m._cl === 'hong kong' || m._cl === 'taiwan') ? '国产' : '国外');
+      if (flt.region === '国产' || flt.region === '中外合拍' || flt.region === '国外') {
+        const reg = m.region || '国外';
         if (reg !== flt.region) return false;
       }
       if (flt.genre) {
@@ -505,9 +559,60 @@
         return { route: 'reset', reply: '已为您重置当前调研会话与所有记忆槽位。请告诉我您想调研的电影主题、导演、年代或剧情线索！', items: [], total: 0, hit_id: null, slots: {}, suggestions: ['诺兰导演的高分科幻片', '1990年代美国悬疑电影', '宫崎骏的动画电影', 'a family travels through space'], trace };
       }
 
-      if (GREETING_RE.test(q)) {
-        trace.push({ step: '意图路由', status: 'clarify', detail: '欢迎与能力说明' });
-        return { route: 'clarify', reply: `您好！我是 **片刻 CineCurator**（浏览器本地全量索引版），内置 **${this.movies.length.toLocaleString()}** 部 1930–2024 年公开电影档案。支持中英文多条件查询、多轮追问对比与片单导出！`, items: [], total: 0, hit_id: null, slots: this.session.slots, suggestions: ['1990年代评分8分以上的美国悬疑电影', '诺兰导演的科幻片', '关于人工智能或太空探索的电影', '盗梦空间'], trace };
+      if (SELF_INTRO_PATTERNS.some(p => p.test(q))) {
+        trace.push({ step: '意图路由', status: 'self_intro', detail: '命中自我介绍/问候路由（不触发片库检索）' });
+        return {
+          route: 'self_intro',
+          reply: `你好！我是 **片刻 CineCurator**（浏览器全量索引版），完整收录 **${this.movies.length.toLocaleString()}** 部 1930–2024 年电影档案，精准区分国产/合拍/国外。\n支持情绪场景推荐、中英文演员导演搜索、多轮对比、**「＋ 类似」**同风格电影拓展与片单导出！直接告诉我你想看什么电影吧！`,
+          items: [], total: 0, hit_id: null, slots: this.session.slots,
+          suggestions: ['刘德华有哪些高评分的电影推荐？', '适合和女朋友周末看的浪漫高分电影', '类似盗梦空间的烧脑电影', '国产高分科幻或剧情电影'],
+          trace, latency_ms: Math.round((performance.now() - t0) * 100) / 100
+        };
+      }
+
+      if (META_QA_PATTERNS.some(p => p.test(q))) {
+        trace.push({ step: '意图路由', status: 'meta_qa', detail: '命中系统元问答/礼貌互动（不触发片库检索）' });
+        const isThanks = /(谢谢|感谢|多谢|再见|拜拜|辛苦|不错|厉害|牛逼|好强|真棒|666|哈哈|好的|收到|明白|ok|thanks|bye)/i.test(q);
+        const reply = isThanks
+          ? '不客气！随时告诉我你想找的电影题材、导演、演员或当下心情，我立刻帮你从片库挑最对味的核心代表作。'
+          : `片库完整收录 **${this.movies.length.toLocaleString()}** 部电影（1930–2024），来自 Hugging Face 公开数据集 *MoviePlotEmbeddingsDataset*（Wikidata/Wikipedia/TMDb, CC BY-NC 4.0）及中文维基补充。采用浏览器倒排 BM25 检索与内容相似度引擎，海报按需从 Wikipedia 加载（0 Token 消耗）。`;
+        return { route: 'meta_qa', reply, items: [], total: 0, hit_id: null, slots: this.session.slots, suggestions: ['刘德华有哪些高评分的电影推荐？', '影史最高分的经典神作', '国产高分电影'], trace, latency_ms: Math.round((performance.now() - t0) * 100) / 100 };
+      }
+
+      if (OFF_TOPIC_RE.test(q) && !/(电影|影片|片子|导演|演员|movie|film|cinema)/i.test(q)) {
+        trace.push({ step: '领域边界护栏', status: 'off_topic', detail: '非电影领域提问，礼貌拒绝且不触发随机检索' });
+        return { route: 'off_topic', reply: '我是专注**电影推荐与影视策展**的垂直领域助手，暂不处理天气、写代码、日常百科等非电影话题～\n不过告诉我你现在的心情或想看的题材，我立刻从 92,374 部片库里为你挑几部佳作！', items: [], total: 0, hit_id: null, slots: this.session.slots, suggestions: ['适合周末放松解压的高分喜剧', '适合全家一起看的高分动画', '刘德华有哪些高评分的电影推荐？'], trace, latency_ms: Math.round((performance.now() - t0) * 100) / 100 };
+      }
+
+      if (NEXT_BATCH_RE.test(q) && (Object.keys(this.session.slots).length || this.session.last_topic)) {
+        const nextOff = (this.session.last_offset || 0) + 3;
+        const prevQ = this.session.last_topic || '';
+        const resM = this.retrieve(prevQ, this.session.slots, nextOff, 3);
+        if (resM.items.length) {
+          this.session.last_offset = nextOff;
+          this.session.last_results = resM.items;
+          trace.push({ step: '多轮换一批', status: 'ok', detail: `沿用上轮槽位，翻至第 ${nextOff+1}–${nextOff+resM.items.length} 部` });
+          const lines = [`为您换一批，继续精选 **${resM.items.length}** 部匹配影片：`];
+          resM.items.forEach((m, i) => lines.push(`${i + 1}. **《${m.title_zh || m.title}》**（${m.year || '?'} · [${m.id}]）`));
+          return { route: 'rag_local', reply: lines.join('\n'), items: resM.items, total: resM.total, hit_id: resM.hit_id, has_more: resM.total > nextOff + resM.items.length, next_offset: nextOff + resM.items.length, slots: this.session.slots, trace, latency_ms: Math.round((performance.now() - t0) * 100) / 100 };
+        }
+      }
+
+      if (SIMILAR_QUERY_PATTERNS.some(p => p.test(q))) {
+        let seedId = null;
+        const extS = this.extractStructured(q, uiFilters);
+        if (extS.mapped_title) {
+          const sr = this.retrieve(extS.mapped_title, { mapped_title: extS.mapped_title }, 0, 1);
+          if (sr.items.length) seedId = sr.items[0].id;
+        }
+        if (!seedId && this.session.last_results.length) seedId = this.session.last_results[0].id;
+        if (seedId) {
+          const sim = this.findSimilar(seedId, this.session.last_results.map(x => x.id).filter(id => id !== seedId), 3);
+          if (sim.items && sim.items.length) {
+            this.session.last_results = sim.items;
+            return sim;
+          }
+        }
       }
 
       if (this.session.last_results.length && COMPARE_PATTERNS.some(p => p.test(q))) {
@@ -588,7 +693,9 @@
         };
       }
 
-      const res = this.retrieve(searchQ, merged, offset, 8);
+      const wantsSingle = (/(一部|1部|最牛|最经典|最震撼|代表作)/.test(q) || !!merged.mapped_title || this.titleExactMap.has(normText(searchQ))) && offset === 0;
+      const coreLimit = (merged.mapped_title || this.titleExactMap.has(normText(searchQ))) ? 1 : (wantsSingle ? 2 : 3);
+      const res = this.retrieve(searchQ, merged, offset, 6);
       trace.push({ step: 'BM25片库检索', status: res.total ? 'hit' : 'miss', detail: `扫描 ${this.movies.length.toLocaleString()} 条索引 → 命中 ${res.total.toLocaleString()} 条（${res.latency_ms} ms）` });
 
       const savedSlots = {};
@@ -607,17 +714,109 @@
       }
 
       this.session.last_results = res.items;
-      const lines = [`在 ${this.movies.length.toLocaleString()} 部电影资料库中共检索到 **${res.total.toLocaleString()}** 条匹配证据，按 BM25 相关性与片名精确度为您整理前列参考片单：`];
-      res.items.slice(0, 4).forEach((m, i) => {
+      this.session.last_offset = offset;
+      const displayItems = res.items.slice(0, coreLimit);
+      const lines = [`在 ${this.movies.length.toLocaleString()} 部片库中找到 **${res.total.toLocaleString()}** 部相关影片，先为您精选最核心的 **${displayItems.length}** 部代表作：`];
+      displayItems.forEach((m, i) => {
         const tDisp = (m.title_zh && m.title_zh !== m.title) ? `${m.title_zh} (${m.title})` : m.title;
-        const dirs = (m.directors && m.directors.length) ? m.directors.join(' / ') : '导演信息缺失';
+        const dirs = (m.directors && m.directors.length) ? m.directors.join(' / ') : '导演未知';
         const rat = m.rating != null ? `TMDb ${m.rating.toFixed(1)}/10（${m.votes.toLocaleString()}票）` : '评分缺失';
-        const awd = m.awards ? ' · 🏆 含获奖记录' : '';
+        const awd = m.awards ? ' · 🏆' : '';
         lines.push(`${i + 1}. **《${tDisp}》**（${m.year || '年份未知'} · ${m.region || ''} · [${m.id}]）— 导演：${dirs} · ${rat}${awd}`);
       });
-      lines.push('💡 可继续追问：「只要 2000 年以后的」「评分 7.5 分以上」「对比前两部」或「详细介绍第 1 部」。');
-      trace.push({ step: '浏览器本地综合', status: 'ok', detail: '纯前端确定性汇总（零幻觉、无需后端）' });
-      return { route: 'rag_local', reply: lines.join('\n'), items: res.items, total: res.total, hit_id: res.hit_id, slots: savedSlots, trace, latency_ms: Math.round((performance.now() - t0) * 100) / 100 };
+      lines.push('💡 点击任意影片卡片上的 **「＋ 类似」** 或末尾 **「＋ 探索更多」** 卡片，即可按需展开同风格推荐。');
+      trace.push({ step: '浏览器核心精选', status: 'ok', detail: `精选最核心 ${displayItems.length} 部展示（零幻觉，可点「＋」扩展）` });
+      return {
+        route: 'rag_local',
+        reply: lines.join('\n'),
+        items: displayItems,
+        total: res.total,
+        hit_id: displayItems[0]?.id || null,
+        has_more: res.total > offset + displayItems.length,
+        next_offset: offset + displayItems.length,
+        slots: savedSlots,
+        trace,
+        latency_ms: Math.round((performance.now() - t0) * 100) / 100
+      };
+    }
+
+    findSimilar(movieId, excludeIds = [], limit = 3) {
+      const t0 = performance.now();
+      const seedIdx = this.movies.findIndex(m => m.id === movieId);
+      if (seedIdx < 0) return { route: 'no_evidence', reply: '未找到对应基准影片。', items: [], total: 0 };
+      const seed = this.movies[seedIdx];
+      const excl = new Set([...excludeIds, movieId]);
+      const seedDirs = new Set((seed.directors || []).map(d => d.toLowerCase()));
+      const seedGenres = new Set(seed._gl || []);
+      const seedRegion = seed.region;
+      const seedYear = seed._y;
+
+      const rawToks = [...new Set(tokenizeEn((seed.title || '') + ' ' + (seed.plot || '')))];
+      const topToks = rawToks
+        .filter(t => this.idf.has(t) && (this.postings.get(t)?.length || 0) <= 12000)
+        .sort((a, b) => this.idf.get(b) - this.idf.get(a))
+        .slice(0, 14);
+
+      const scores = new Map();
+      const k1 = 1.5, b = 0.75;
+      for (const term of topToks) {
+        const idf = this.idf.get(term);
+        const plist = this.postings.get(term);
+        for (let p = 0; p < plist.length; p += 2) {
+          const idx = plist[p], tf = plist[p + 1];
+          if (excl.has(this.movies[idx].id)) continue;
+          const dl = this.docLen[idx];
+          const bm25 = idf * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * dl / this.avgDl));
+          scores.set(idx, (scores.get(idx) || 0) + bm25);
+        }
+      }
+      if (seedDirs.size) {
+        for (let i = 0; i < this.movies.length; i++) {
+          if (excl.has(this.movies[i].id)) continue;
+          for (const d of seedDirs) {
+            if (this.movies[i]._dir.includes(d)) { scores.set(i, (scores.get(i) || 0) + 18); break; }
+          }
+        }
+      }
+
+      const ranked = [];
+      for (const [idx, baseS] of scores.entries()) {
+        const m = this.movies[idx];
+        if (excl.has(m.id)) continue;
+        let s = baseS;
+        const reasons = [];
+        if (seedDirs.size && (m.directors || []).some(d => seedDirs.has(d.toLowerCase()))) { s += 14; reasons.push('同导演'); }
+        const ovG = (m._gl || []).filter(g => seedGenres.has(g)).length;
+        if (ovG) { s += 4.5 * Math.min(3, ovG); reasons.push(`同题材(${ovG}项)`); }
+        if (seedRegion && m.region === seedRegion) { s += 3; if (seedRegion === '国产') reasons.push('同属国产/华语'); }
+        if (seedYear && m._y && Math.abs(seedYear - m._y) <= 10) { s += 2.2; reasons.push('相近年代'); }
+        if (baseS >= 4) reasons.push('剧情主题相近');
+        s += 0.9 * (m.rating || 0) + 0.35 * Math.log1p(m.votes || 0);
+        ranked.push([s, reasons, idx]);
+      }
+      ranked.sort((a, b) => b[0] - a[0]);
+      const items = ranked.slice(0, limit).map(([s, reasons, idx]) => ({
+        ...this.movies[idx],
+        similarity_reason: reasons.slice(0, 3).join(' · ') || '风格与剧情相近',
+        relevance: Math.round(s * 100) / 100
+      }));
+      const tSeed = (seed.title_zh && seed.title_zh !== seed.title) ? `${seed.title_zh} (${seed.title})` : seed.title;
+      const lines = [`基于 **《${tSeed}》[${seed.id}]** 的导演、题材、年代与剧情特征，从 ${this.movies.length.toLocaleString()} 部片库中为您推荐 **${items.length}** 部同风格影片：`];
+      items.forEach((m, i) => {
+        const td = (m.title_zh && m.title_zh !== m.title) ? `${m.title_zh} (${m.title})` : m.title;
+        lines.push(`${i + 1}. **《${td}》**（${m.year || '?'} · [${m.id}]）— 相似依据：${m.similarity_reason}`);
+      });
+      const ms = Math.round((performance.now() - t0) * 100) / 100;
+      return {
+        route: 'similar',
+        reply: lines.join('\n'),
+        items,
+        seed_id: seed.id,
+        total: items.length,
+        hit_id: items[0]?.id || null,
+        latency_ms: ms,
+        trace: [{ step: '内容相似度引擎', status: 'ok', detail: `基于 [${seed.id}] 导演/题材/年代/BM25 推荐 ${items.length} 部（${ms} ms）` }]
+      };
     }
   }
 

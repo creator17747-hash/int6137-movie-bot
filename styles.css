@@ -785,6 +785,85 @@ body.light .route-clarify { color: #2463ab; }
   background: var(--gold-soft);
 }
 
+/* Similarity Reason Badge & Plus Expansion Card */
+.sim-badge {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--emerald);
+  background: var(--emerald-soft);
+  border: 1px solid rgba(56, 178, 139, 0.28);
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-bottom: 5px;
+}
+
+.plus-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  min-height: 180px;
+  padding: 18px 16px;
+  border-radius: 13px;
+  border: 1.5px dashed var(--line-strong);
+  background: linear-gradient(145deg, rgba(229, 184, 105, 0.05), rgba(22, 30, 41, 0.45));
+  transition: all 0.18s ease;
+}
+
+body.light .plus-card {
+  background: linear-gradient(145deg, rgba(158, 99, 36, 0.05), #faf8f3);
+}
+
+.plus-card:hover {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  transform: translateY(-2px);
+}
+
+.plus-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1.5px solid var(--gold);
+  color: var(--gold);
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 400;
+  cursor: pointer;
+  background: transparent;
+  transition: all 0.16s ease;
+}
+
+.plus-circle:hover {
+  background: var(--gold);
+  color: #14120e;
+}
+
+.plus-card-title {
+  font-family: var(--serif);
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--gold);
+}
+
+.plus-card-sub {
+  font-size: 12px;
+  color: var(--muted);
+  max-width: 240px;
+}
+
+.plus-card-btns {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 4px;
+}
+
 /* Suggestions & Followup Chips */
 .chip-bar {
   display: flex;
