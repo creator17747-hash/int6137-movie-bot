@@ -228,10 +228,9 @@
   function zhSummaryLine(movie) {
     const yr = movie.year ? `${movie.year} 年` : '';
     const ct = zhCountry(movie.country);
-    const gs = (movie.genres || []).slice(0, 2).map(zhGenre).join('/');
-    const dir = (movie.directors && movie.directors.length) ? `由 ${zhDirector(movie.directors[0])} 执导` : '';
-    const parts = [`${yr}${ct !== '地区未知' ? ct : ''}${gs ? gs + '片' : '影片'}`, dir].filter(Boolean);
-    return `【中文档案速览】${parts.join('，')}。下方为原始英文剧情摘要：`;
+    const gs = (movie.genres || []).slice(0, 2).map(zhGenre).join(' / ');
+    const dir = (movie.directors && movie.directors.length) ? `导演：${zhDirector(movie.directors[0])}` : '';
+    return [yr, ct !== '地区未知' ? ct : '', gs, dir].filter(Boolean).join(' · ');
   }
 
   // Genre-based cinema art poster palettes (Criterion / A24 aesthetic)
@@ -548,7 +547,7 @@
     const btnDetail = document.createElement('button');
     btnDetail.type = 'button';
     btnDetail.className = 'btn btn-sm';
-    btnDetail.textContent = '详档';
+    btnDetail.textContent = '详情';
     btnDetail.onclick = () => openDetailModal(movie);
 
     const btnSave = document.createElement('button');
@@ -556,7 +555,7 @@
     btnSave.className = 'btn btn-sm';
     const syncSaveText = () => {
       const saved = shortlist.has(movie.id);
-      btnSave.textContent = saved ? '✓ 已加片单' : '+ 策展片单';
+      btnSave.textContent = saved ? '✓ 已收藏' : '＋ 存片单';
       btnSave.style.borderColor = saved ? 'var(--gold)' : '';
       btnSave.style.color = saved ? 'var(--gold)' : '';
     };
@@ -690,7 +689,7 @@
     if (!shortlist.size) {
       const p = document.createElement('p');
       p.className = 'modal-sub';
-      p.textContent = '尚未收藏影片。在对话结果中点击任意影片的「+ 策展片单」即可加入，支持一键导出专业 Markdown 调研简报。';
+      p.textContent = '还没收藏电影呢，点任意影片卡片上的「＋ 存片单」就能加进来，随时可以导出分享。';
       box.append(p);
       return;
     }
@@ -727,7 +726,7 @@
   function exportShortlistMarkdown() {
     if (!shortlist.size) return;
     const lines = [
-      '# 片刻 CineCurator — 专业电影策展调研片单',
+      '# 片刻 CineCurator — 我的电影片单',
       '',
       `> 导出时间：${new Date().toLocaleString()} · 共 ${shortlist.size} 部已验证影片 · 数据来源：MoviePlotEmbeddingsDataset (CC BY-NC 4.0)`,
       '',
@@ -774,7 +773,7 @@
     if (!entries.length) {
       const span = document.createElement('span');
       span.className = 'slot-empty';
-      span.textContent = '暂无记忆槽位（开始提问后将自动记录多轮上下文）';
+      span.textContent = '还没加条件，直接聊聊你想看什么就行';
       el.append(span);
       return;
     }
@@ -823,19 +822,19 @@
 
   function routeMeta(route) {
     switch (route) {
-      case 'rag_cloud': return ['✨ 云端真 RAG 生成', 'route-cloud'];
-      case 'degraded_local': return ['⚡ 云端异常 · 已优雅降级至本地证据模式', 'route-degraded'];
-      case 'clarify': return ['💬 主动澄清引导', 'route-clarify'];
-      case 'security_refusal': return ['🛡️ 安全护栏已拦截', 'route-security'];
-      case 'no_evidence': return ['📭 无匹配证据 · 拒绝编造', 'route-empty'];
-      case 'context_compare': return ['🔄 多轮上下文横向对比', 'route-cloud'];
-      case 'self_intro': return ['👋 自我介绍', 'route-clarify'];
-      case 'meta_qa': return ['ℹ️ 系统与片库说明', 'route-clarify'];
-      case 'off_topic': return ['🧭 领域边界引导', 'route-empty'];
-      case 'context_detail': return ['📄 多轮上下文影片详档', 'route-cloud'];
-      case 'similar': return ['✨ 同风格智能推荐', 'route-cloud'];
-      case 'reset': return ['🧹 会话记忆已重置', 'route-empty'];
-      default: return ['📚 本地核心精选模式', 'route-local'];
+      case 'rag_cloud': return ['✨ AI 推荐', 'route-cloud'];
+      case 'degraded_local': return ['⚡ 网络波动 · 已切换片库直搜', 'route-degraded'];
+      case 'clarify': return ['💬 想多了解一点', 'route-clarify'];
+      case 'security_refusal': return ['🛡️ 提示', 'route-security'];
+      case 'no_evidence': return ['📭 暂未找到', 'route-empty'];
+      case 'context_compare': return ['🔄 影片对比', 'route-cloud'];
+      case 'self_intro': return ['👋 你好', 'route-clarify'];
+      case 'meta_qa': return ['ℹ️ 关于片刻', 'route-clarify'];
+      case 'off_topic': return ['🎬 专注电影', 'route-empty'];
+      case 'context_detail': return ['📄 影片详情', 'route-cloud'];
+      case 'similar': return ['✨ 相似推荐', 'route-cloud'];
+      case 'reset': return ['🧹 新对话', 'route-empty'];
+      default: return ['📚 片库直搜', 'route-local'];
     }
   }
 
@@ -1018,12 +1017,12 @@
 
     if (chips.childElementCount) b.append(chips);
 
-    // Collapsible Pipeline Trace (for INT6137 architecture explainability!)
+    // Collapsible retrieval trace
     if (data.trace && data.trace.length) {
       const det = document.createElement('details');
       det.className = 'trace-details';
       const sum = document.createElement('summary');
-      sum.textContent = `🔎 查看架构决策路由追踪（${data.trace.length} 步 · 首位命中 ID: ${data.hit_id || '无'}）`;
+      sum.textContent = `查看检索过程（${data.trace.length} 步）`;
       const steps = document.createElement('div');
       steps.className = 'trace-steps';
       data.trace.forEach((t, idx) => {
@@ -1235,7 +1234,7 @@
       const tStart = performance.now();
       loadingBubble = document.createElement('div');
       loadingBubble.className = 'msg msg-bot';
-      loadingBubble.innerHTML = `<div class="bubble"><div class="msg-meta"><span class="route-badge route-cloud">✨ 正在检索 92,374 部片库并调用 ${activeModel} 生成闭卷推荐…</span><span class="latency-tag" id="liveWaitTimer">0.0 s</span></div><div class="reply-body" style="color:var(--muted);">片单与专业策展分析将同步呈现，请稍候…</div></div>`;
+      loadingBubble.innerHTML = `<div class="bubble"><div class="msg-meta"><span class="route-badge route-cloud">✨ 正在为你挑片…</span><span class="latency-tag" id="liveWaitTimer">0.0 s</span></div><div class="reply-body" style="color:var(--muted);">正在翻片库找最合适的几部，马上就好…</div></div>`;
       $('messages').append(loadingBubble);
       $('messages').scrollTop = $('messages').scrollHeight;
       loadingTimer = setInterval(() => {
@@ -1328,7 +1327,7 @@
     // Theme toggle
     $('themeBtn').onclick = () => {
       document.body.classList.toggle('light');
-      $('themeBtn').textContent = document.body.classList.contains('light') ? '🌙 深色影院' : '☀️ 投影浅色';
+      $('themeBtn').textContent = document.body.classList.contains('light') ? '🌙 深色模式' : '☀️ 浅色模式';
     };
 
     // Modals
@@ -1491,7 +1490,7 @@
         if ($('cloudModelSelect') && cfg.model && SCHOOL_MODELS[cfg.model]) {
           $('cloudModelSelect').value = cfg.model;
         }
-        populateMeta(meta, cloudConfigured ? 'BM25 + 云端 RAG' : 'BM25 本地索引');
+        populateMeta(meta, cloudConfigured ? 'AI 推荐已就绪' : '片库直搜');
         return;
       } catch {
         // Fallback to static browser engine automatically if opened without Python server
@@ -1500,10 +1499,10 @@
     }
 
     cloudConfigured = true;
-    $('statusText').textContent = '正在并行加载 92,374 部全量影库…';
+    $('statusText').textContent = '正在加载片库…';
     try {
       const meta = await browserEngine.load(['catalog_1.pack', 'catalog_2.pack']);
-      populateMeta(meta, '云端闭卷 RAG · 全量索引');
+      populateMeta(meta, 'AI 推荐已就绪');
     } catch (err) {
       $('statusText').textContent = '索引加载失败';
       appendBotMessage({
