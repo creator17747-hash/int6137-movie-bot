@@ -82,7 +82,7 @@
     const sysMsg =
       'Movie DB intent & search parser. Output ONLY compact JSON (no markdown, no explanation). ' +
       'If greeting/self-intro/off-topic/chat: {"intent":"self_intro|off_topic|chitchat","direct_reply":"简短礼貌中文回复","english_keywords":[]}. ' +
-      'If movie search: {"intent":"movie_search","english_keywords":["2-5 English words"],"actor":null,"director":null,"genre":null,"country":null,"region":null,"year_min":null,"year_max":null,"min_rating":null}.';
+      'If movie search: {"intent":"movie_search","english_keywords":["2-5 English words"],"actor":null,"director":null,"genre":null,"country":null,"region":null,"year_min":null,"year_max":null,"min_rating":null,"exclude_genres":[],"exclude_countries":[]}.';
     let raw = await schoolCloudPost(
       model,
       [{ role: 'system', content: sysMsg }, { role: 'user', content: query }],
@@ -766,6 +766,9 @@
       if (slots.year_min || slots.year_max) entries.push(`年份: ${slots.year_min || ''}–${slots.year_max || ''}`);
       if (slots.min_rating) entries.push(`评分 ≥ ${slots.min_rating}`);
       if (slots.awards_only) entries.push('🏆 含获奖记录');
+      if (slots.exclude_region) entries.push(`🚫 排除国别: ${slots.exclude_region}`);
+      if (slots.exclude_genres && slots.exclude_genres.length) entries.push(`🚫 排除类型: ${slots.exclude_genres.map(zhGenre).join('/')}`);
+      if (slots.exclude_countries && slots.exclude_countries.length) entries.push(`🚫 排除地区: ${slots.exclude_countries.map(zhCountry).join('/')}`);
       if (slots.expanded_terms && slots.expanded_terms.length) entries.push(`主题词: ${slots.expanded_terms.slice(0, 3).join('/')}`);
     }
     if (!entries.length) {
