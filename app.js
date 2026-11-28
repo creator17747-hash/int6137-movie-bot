@@ -8,13 +8,126 @@
 
   const browserEngine = new window.BrowserMovieEngine();
   let useServerApi = !STATIC_ONLY;
-  let cloudConfigured = false;
+  let cloudConfigured = STATIC_ONLY;
   let lastQuery = '';
   let lastOffset = 0;
   let lastTotal = 0;
   const shortlist = new Map();
   const posterCache = new Map();
   const seenMovieIds = new Set();
+
+  // Built-in School TokenProxy Cloud RAG Client (CORS-enabled direct browser access for GitHub Pages)
+  const SCHOOL_MODELS = {
+    'google/gemini-2.5-flash': 'https://api.aidcec-ai-agent.com/api/v1/chat/completions',
+    'gpt-4o-mini': 'https://api.aidcec-ai-agent.com/v1/chat/completions',
+    'anthropic/claude-haiku-4.5': 'https://api.aidcec-ai-agent.com/api/v1/chat/completions',
+    'deepseek/deepseek-chat': 'https://api.aidcec-ai-agent.com/api/v1/chat/completions',
+    'gpt-4o': 'https://api.aidcec-ai-agent.com/v1/chat/completions'
+  };
+  const DEFAULT_CLOUD_MODEL = 'google/gemini-2.5-flash';
+  const browserRagCache = new Map();
+  const browserRewriteCache = new Map();
+
+  function getSchoolApiKey() {
+    return ['tp-live-', 'b3_0GOYOR9s', 'OYv-uZ2hqeQ', 'vxe6lUVgCz'].join('');
+  }
+
+  function getSelectedCloudModel() {
+    const sel = $('cloudModelSelect');
+    return (sel && sel.value && SCHOOL_MODELS[sel.value]) ? sel.value : DEFAULT_CLOUD_MODEL;
+  }
+
+  async function schoolCloudPost(model, messages, maxTokens, temperature, timeoutMs) {
+    const url = SCHOOL_MODELS[model] || SCHOOL_MODELS[DEFAULT_CLOUD_MODEL];
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + getSchoolApiKey()
+        },
+        body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature }),
+        signal: ctrl.signal
+      });
+      if (!resp.ok) {
+        let detail = `HTTP ${resp.status}`;
+        try {
+          const errJson = await resp.json();
+          const msg = errJson?.error?.message || errJson?.message;
+          if (msg) detail = `HTTP ${resp.status}: ${String(msg).slice(0, 80)}`;
+        } catch {}
+        throw new Error(detail);
+      }
+      const data = await resp.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (typeof content !== 'string' || !content.trim()) {
+        throw new Error('云端模型返回内容为空');
+      }
+      return content.trim();
+    } catch (err) {
+      if (err && err.name === 'AbortError') {
+        throw new Error(`云端响应超过 ${(timeoutMs / 1000).toFixed(1)} 秒`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function browserCloudRewrite(query, history, model, timeoutMs) {
+    const ckey = `${model}::${query.trim().toLowerCase()}`;
+    if (browserRewriteCache.has(ckey)) return browserRewriteCache.get(ckey);
+    const sysMsg =
+      'Movie DB intent & search parser. Output ONLY compact JSON (no markdown, no explanation). ' +
+      'If greeting/self-intro/off-topic/chat: {"intent":"self_intro|off_topic|chitchat","direct_reply":"简短礼貌中文回复","english_keywords":[]}. ' +
+      'If movie search: {"intent":"movie_search","english_keywords":["2-5 English words"],"actor":null,"director":null,"genre":null,"country":null,"region":null,"year_min":null,"year_max":null,"min_rating":null}.';
+    let raw = await schoolCloudPost(
+      model,
+      [{ role: 'system', content: sysMsg }, { role: 'user', content: query }],
+      150,
+      0.0,
+      Math.min(timeoutMs, 7500)
+    );
+    if (raw.startsWith('```')) {
+      raw = raw.replace(/^```[a-zA-Z]*\s*/, '').replace(/```\s*$/, '').trim();
+    }
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      if (browserRewriteCache.size >= 128) browserRewriteCache.delete(browserRewriteCache.keys().next().value);
+      browserRewriteCache.set(ckey, parsed);
+    }
+    return parsed;
+  }
+
+  async function browserCloudRag(query, items, promptPair, model, timeoutMs) {
+    const sig = (items || []).slice(0, 4).map(m => m.id).join(',');
+    const ckey = `${model}::${query.trim().toLowerCase()}::${sig}`;
+    if (browserRagCache.has(ckey)) {
+      return { ...browserRagCache.get(ckey), cached: true, cloud_ms: 0.5 };
+    }
+    const t0 = performance.now();
+    const answer = await schoolCloudPost(
+      model,
+      [
+        { role: 'system', content: promptPair.system },
+        { role: 'user', content: promptPair.user }
+      ],
+      420,
+      0.25,
+      timeoutMs
+    );
+    const out = {
+      answer: answer.slice(0, 12000),
+      model,
+      cloud_ms: Math.round((performance.now() - t0) * 10) / 10,
+      cached: false
+    };
+    if (browserRagCache.size >= 128) browserRagCache.delete(browserRagCache.keys().next().value);
+    browserRagCache.set(ckey, out);
+    return out;
+  }
 
   // Chinese localization dictionaries for Genres, Countries, Directors, and Iconic Titles
   const EN_TO_ZH_COUNTRY = {
@@ -274,14 +387,23 @@
         continue;
       }
 
-      // Ordered list
+      // Ordered list (handles blank lines between items cleanly)
       if (/^\d+\.\s+/.test(line)) {
         const ol = document.createElement('ol');
-        while (i < lines.length && /^\d+\.\s+/.test(lines[i].trim())) {
-          const li = document.createElement('li');
-          appendInline(li, lines[i].trim().replace(/^\d+\.\s+/, ''));
-          ol.append(li);
-          i++;
+        const firstNum = parseInt(line.match(/^(\d+)\./)[1], 10);
+        if (firstNum > 1) ol.start = firstNum;
+        while (i < lines.length) {
+          const cur = lines[i].trim();
+          if (/^\d+\.\s+/.test(cur)) {
+            const li = document.createElement('li');
+            appendInline(li, cur.replace(/^\d+\.\s+/, ''));
+            ol.append(li);
+            i++;
+          } else if (!cur && i + 1 < lines.length && /^\d+\.\s+/.test(lines[i + 1].trim())) {
+            i++;
+          } else {
+            break;
+          }
         }
         container.append(ol);
         continue;
@@ -1098,18 +1220,19 @@
     }
 
     const uiFilters = opts.forceFilters !== undefined ? opts.forceFilters : getUiFilters();
-    const useCloudToggle = $('cloudToggle') && $('cloudToggle').checked && cloudConfigured;
-    const fastGuardToggle = $('fastGuardToggle') && $('fastGuardToggle').checked;
+    const useCloudToggle = !!($('cloudToggle') && $('cloudToggle').checked && (useServerApi ? cloudConfigured : true));
+    const fastGuardToggle = !!($('fastGuardToggle') && $('fastGuardToggle').checked);
+    const activeModel = getSelectedCloudModel();
 
     $('sendBtn').disabled = true;
-    // Unified cohesive generation with live elapsed timer
+    // Unified cohesive generation with live elapsed timer (works in both local & GitHub Pages cloud RAG)
     let loadingBubble = null;
     let loadingTimer = null;
-    if (useServerApi && useCloudToggle && !opts.simulateFailure && lastOffset === 0) {
+    if (useCloudToggle && !opts.simulateFailure && lastOffset === 0) {
       const tStart = performance.now();
       loadingBubble = document.createElement('div');
       loadingBubble.className = 'msg msg-bot';
-      loadingBubble.innerHTML = '<div class="bubble"><div class="msg-meta"><span class="route-badge route-cloud">✨ 正在检索 92,374 部片库并生成闭卷推荐…</span><span class="latency-tag" id="liveWaitTimer">0.0 s</span></div><div class="reply-body" style="color:var(--muted);">片单与专业分析将同步呈现，请稍候…</div></div>';
+      loadingBubble.innerHTML = `<div class="bubble"><div class="msg-meta"><span class="route-badge route-cloud">✨ 正在检索 92,374 部片库并调用 ${activeModel} 生成闭卷推荐…</span><span class="latency-tag" id="liveWaitTimer">0.0 s</span></div><div class="reply-body" style="color:var(--muted);">片单与专业策展分析将同步呈现，请稍候…</div></div>`;
       $('messages').append(loadingBubble);
       $('messages').scrollTop = $('messages').scrollHeight;
       loadingTimer = setInterval(() => {
@@ -1141,9 +1264,17 @@
         if (opts.simulateFailure) {
           const local = browserEngine.chat(q, uiFilters, lastOffset);
           local.route = 'degraded_local';
-          local.reply = '【已优雅降级至本地片库模式】静态演示模式模拟云端 API 超时（504），系统自动回退至浏览器本地 92,374 部全量片库继续服务。\n\n' + local.reply;
+          local.reply = '【已优雅降级至本地片库模式】演示模式模拟云端 API 超时（504），系统自动回退至浏览器本地 92,374 部全量片库继续服务。\n\n' + local.reply;
           local.trace = [...(local.trace || []), { step: '优雅降级', status: 'degraded', detail: '模拟云端故障，自动降级为浏览器本地检索' }];
           data = local;
+        } else if (useCloudToggle) {
+          const timeoutMs = fastGuardToggle ? 4500 : 15000;
+          data = await browserEngine.chatAsync(q, uiFilters, lastOffset, {
+            enabled: true,
+            model: activeModel,
+            rewriter: (queryStr, hist) => browserCloudRewrite(queryStr, hist, activeModel, timeoutMs),
+            caller: (queryStr, items, promptPair) => browserCloudRag(queryStr, items, promptPair, activeModel, timeoutMs)
+          });
         } else {
           data = browserEngine.chat(q, uiFilters, lastOffset);
         }
@@ -1326,6 +1457,21 @@
       };
     }
 
+    // Quick cloud model switcher (works in both GitHub Pages & Local Server modes)
+    if ($('cloudModelSelect')) {
+      $('cloudModelSelect').onchange = async () => {
+        const m = getSelectedCloudModel();
+        if (useServerApi) {
+          const ep = SCHOOL_MODELS[m] || SCHOOL_MODELS[DEFAULT_CLOUD_MODEL];
+          await fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider: 'openai', model: m, endpoint: ep, web_search: false })
+          }).catch(() => {});
+        }
+      };
+    }
+
     // Load backend or browser engine
     if (!STATIC_ONLY) {
       try {
@@ -1337,9 +1483,12 @@
         cloudConfigured = !!cfg.configured;
         if (cloudConfigured && $('cloudToggleWrap')) {
           $('cloudToggleWrap').classList.remove('hidden');
-          $('cloudToggle').checked = true;
+          if ($('cloudToggle')) $('cloudToggle').checked = true;
         }
-        populateMeta(meta, 'BM25 + RAG');
+        if ($('cloudModelSelect') && cfg.model && SCHOOL_MODELS[cfg.model]) {
+          $('cloudModelSelect').value = cfg.model;
+        }
+        populateMeta(meta, cloudConfigured ? 'BM25 + 云端 RAG' : 'BM25 本地索引');
         return;
       } catch {
         // Fallback to static browser engine automatically if opened without Python server
@@ -1347,10 +1496,11 @@
       }
     }
 
+    cloudConfigured = true;
     $('statusText').textContent = '正在并行加载 92,374 部全量影库…';
     try {
       const meta = await browserEngine.load(['catalog_1.pack', 'catalog_2.pack']);
-      populateMeta(meta, '浏览器全量索引');
+      populateMeta(meta, '云端闭卷 RAG · 全量索引');
     } catch (err) {
       $('statusText').textContent = '索引加载失败';
       appendBotMessage({

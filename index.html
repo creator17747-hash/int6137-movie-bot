@@ -148,7 +148,23 @@
           <div>
             数据来源：<a href="https://huggingface.co/datasets/NiklasAbraham/MoviePlotEmbeddingsDataset" target="_blank" rel="noopener">MoviePlotEmbeddingsDataset</a> (CC BY-NC 4.0 · Wikidata/Wikipedia/TMDb) · 仅供非商业课程演示 · 绝不编造电影事实
           </div>
-          
+          <div id="cloudToggleWrap" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <label class="mode-toggle">
+              <input type="checkbox" id="cloudToggle" checked>
+              <span>✨ 启用云端闭卷 RAG</span>
+            </label>
+            <select id="cloudModelSelect" class="cloud-model-select" title="切换学校 TokenProxy 云端大模型">
+              <option value="google/gemini-2.5-flash" selected>Gemini 2.5 Flash（推荐）</option>
+              <option value="gpt-4o-mini">GPT-4o Mini（极速稳健）</option>
+              <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5（影评风）</option>
+              <option value="deepseek/deepseek-chat">DeepSeek Chat（中文流畅）</option>
+              <option value="gpt-4o">GPT-4o（旗舰）</option>
+            </select>
+            <label class="mode-toggle" title="超过 4 秒自动无缝切回本地极速片库（适合课堂演示防卡顿）">
+              <input type="checkbox" id="fastGuardToggle">
+              <span>⚡ 4秒极速保底</span>
+            </label>
+          </div>
         </div>
       </div>
     </main>
@@ -173,7 +189,7 @@
       <tr><td>92,374 部全量电影倒排 BM25 + 国产/合拍/国外精筛</td><td class="status-done">已实现</td><td>100% 收录 1930–2024 全量片库（双 Gzip 分片 27.3 MB），含 2,388 部纯国产片、86,598 条导演、5,058 条获奖记录与 1,314 条中文片名</td></tr>
       <tr><td>八维意图路由器与领域边界护栏</td><td class="status-done">已实现</td><td>精准拦截自我介绍、问候、系统元问答、感谢及非电影话题（天气/写代码等），绝不乱推电影卡片；支持「换一批」「类似《某片》」等自然口语</td></tr>
       <tr><td>核心聚焦展示 +「＋」内容相似度扩展引擎</td><td class="status-done">已实现</td><td>默认仅展示最核心 1–3 部避免刷屏；点击「＋ 类似」按导演/题材/年代/BM25 实时推荐同风格影片</td></tr>
-      <tr><td>严格闭卷统一 RAG + 单次极速调用 + 引用核验</td><td class="status-done">已实现（本机版）</td><td>本地命中后仅发 1 次云端请求（缓存 Endpoint DNS），图文与卡片统一对齐渲染；严格闭卷零编造并自动审计 `[QID]` 引用零越界</td></tr>
+      <tr><td>严格闭卷统一 RAG + 单次极速调用 + 引用核验</td><td class="status-done">已实现（双端直连）</td><td>本地 92,374 部片库命中后仅发 1 次云端请求，默认接入 Gemini 2.5 Flash（可一键切换模型），图文与卡片统一对齐渲染；严格闭卷零编造并自动审计 `[QID]` 引用零越界</td></tr>
       <tr><td>多轮对话记忆槽位、横向对比与详档</td><td class="status-done">已实现</td><td>支持连续收窄条件、换一批、对比前 2–3 部、展开单部详档及一键重置会话</td></tr>
       <tr><td>韧性四件套（澄清 / 异常 / 备援 / 优雅降级）</td><td class="status-done">已实现</td><td>模糊提问主动追问；0 命中智能分析放宽建议；云端超时/报错自动降级至本地片库</td></tr>
       <tr><td>安全护栏（Prompt Injection & SSRF 防护）</td><td class="status-done">已实现</td><td>规则拦截常见注入与密钥探测；严禁内网/非 HTTPS API 地址；密钥仅内存暂存</td></tr>

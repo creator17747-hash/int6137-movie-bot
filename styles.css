@@ -992,6 +992,22 @@ body.light .plus-card {
   color: var(--ink-soft);
 }
 
+.cloud-model-select {
+  background: var(--bg-soft);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11.5px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.cloud-model-select:focus {
+  border-color: var(--gold);
+}
+
 /* Modals */
 dialog.modal {
   width: min(680px, calc(100% - 28px));
