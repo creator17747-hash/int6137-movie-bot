@@ -309,11 +309,17 @@
     }
   }
 
-  // Safe Markdown -> DOM renderer (escapes HTML completely, supports headings, bold, inline code, lists, tables)
+  // Safe Markdown -> DOM renderer (escapes HTML completely, strips internal [QID] tags from display)
   function renderSafeMarkdown(text) {
     const container = document.createElement('div');
     container.className = 'reply-body';
-    const lines = String(text || '').split('\n');
+    const cleaned = String(text || '')
+      .replace(/\s*\[Q\d+\]/g, '')
+      .replace(/\[Q\d+\]\s*/g, '')
+      .replace(/[；;]\s*(?=[2-9]\.\s)/g, '\n')
+      .replace(/ {2,}/g, ' ')
+      .replace(/ ([：，。！？])/g, '$1');
+    const lines = cleaned.split('\n');
     let i = 0;
 
     function appendInline(parent, str) {
@@ -478,10 +484,7 @@
     h3.className = 'movie-title';
     h3.textContent = displayTitle(movie);
     h3.onclick = () => openDetailModal(movie);
-    const qid = document.createElement('span');
-    qid.className = 'qid-tag';
-    qid.textContent = movie.id;
-    trow.append(h3, qid);
+    trow.append(h3);
 
     const sub = document.createElement('div');
     sub.className = 'movie-sub';
@@ -626,7 +629,6 @@
     const meta = document.createElement('p');
     meta.className = 'modal-sub';
     meta.textContent = [
-      `Wikidata: ${movie.id}`,
       zhCountry(movie.country),
       movie.minutes ? `${movie.minutes} 分钟` : null,
       movie.rating != null ? `TMDb ${movie.rating.toFixed(1)}/10 (${(movie.votes || 0).toLocaleString()}票)` : '评分缺失'
